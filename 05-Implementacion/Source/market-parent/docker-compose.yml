@@ -86,13 +86,29 @@ services:
       KAFKA_REST_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
 
   # =========================
-  # ZIPKIN (TRACING)
+  # JAEGER (TRACING - Reemplaza a Zipkin)
   # =========================
-  zipkin:
-    image: openzipkin/zipkin:latest
-    container_name: zipkin
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411 # Opcional: compatibilidad con Zipkin
     ports:
-      - "9411:9411"
+      - "16686:16686" # Jaeger UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "9411:9411"   # Zipkin compatible endpoint
+
+  # =========================
+  # LOKI (LOGS)
+  # =========================
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
 
   # =========================
   # PROMETHEUS (METRICS)
@@ -116,8 +132,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_EXPLORE_ENABLED: "true" # Habilita la exploración de logs/trazas
     depends_on:
       - prometheus
+      - loki
+      - jaeger
 
   # =========================
   # REDIS
@@ -138,7 +157,7 @@ services:
   # =========================
   market-loader-service:
     build:
-      context: ./market-loader-service    # 👈 Ruta corregida
+      context: ./market-loader-service
       dockerfile: Dockerfile
     container_name: market-loader-service
     depends_on:
@@ -148,7 +167,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      zipkin:
+      jaeger:
         condition: service_started
     ports:
       - "9080:9080"
@@ -165,15 +184,16 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
 
+      # Cambio a Jaeger (OTLP)
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
-      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
 
   # =========================
   # MICROSERVICIO 2: STREAM (WebSocket Yahoo en tiempo real)
   # =========================
   market-stream-service:
     build:
-      context: ./market-stream-service    # 👈 Ruta corregida
+      context: ./market-stream-service
       dockerfile: Dockerfile
     container_name: market-stream-service
     depends_on:
@@ -181,37 +201,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      kafka:                       # 👈 Añadimos kafka a depends_on
+      kafka:
         condition: service_healthy
-      zipkin:
+      jaeger:
         condition: service_started
     ports:
       - "9081:9081"
     environment:
       SPRING_PROFILES_ACTIVE: docker
       
-      # Base de datos
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/marketdb
       SPRING_DATASOURCE_USERNAME: market_user
       SPRING_DATASOURCE_PASSWORD: market_pass
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       
-      # Redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
       
-      # Yahoo Config
       YAHOO_WEBSOCKET_SYMBOLS: "SDEV,BE,PDSB,HYPE32196-USD,AMD"
       
-      # Observabilidad
+      # Cambio a Jaeger (OTLP)
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
-      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
       
-      # Logs DEBUG para ver los ticks (Opcional)
       LOGGING_LEVEL_MX_COM_CIAT_CIO_MARKET_PLATFORM_MARKETSTREAMSERVICE: DEBUG
 
-      # Kafka
-      # 👇 Configuración de Kafka usando el prefijo de Spring Boot
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_KAFKA_PRODUCER_KEY_SERIALIZER: org.apache.kafka.common.serialization.StringSerializer
       SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER: org.springframework.kafka.support.serializer.JsonSerializer
@@ -232,12 +246,11 @@ services:
       - "9082:9082"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # Por ahora, valores de prueba
       SPRING_MAIL_USERNAME: ernesto.tcs@gmail.com
       SPRING_MAIL_PASSWORD: M4rt1n3$6
       WHATSAPP_API_TOKEN: TU_TOKEN
       WHATSAPP_API_PHONE_NUMBER_ID: TU_ID
-      WHATSAPP_API_RECIPIENT: "521XXXXXXXXXX"	  
+      WHATSAPP_API_RECIPIENT: "521XXXXXXXXXX"   
 
   # =========================
   # KAFKA UI
