@@ -120,12 +120,72 @@ Este documento está dirigido a **Arquitectos de Software, SREs, Ingenieros de D
 | **Convenciones de Código** | `/05-Implementacion/CODING_STANDARDS.md` | Reglas de PRs, commits, etc. |
 | **Pipeline CI/CD** | `/05-Implementacion/.github/workflows/` | Archivos YAML de GitHub Actions. |
 
+
+### 5.1. Secuencia de Despliegue Local (Docker Compose)
+
+Para levantar el entorno completo y probar la arquitectura (Kafka, MySQL y Microservicios), sigue estos pasos en orden.
+
+**Paso 1. Navegar al directorio de infraestructura:**
+
+```bash
+cd /05-Implementacion/Source/market-parent
+```
+
+**Paso 2. Levantar la infraestructura base (MySQL y Kafka):**
+
+Utiliza el archivo `docker-compose.yml` para iniciar la base de datos y el broker de mensajería en segundo plano.
+
+```bash
+docker-compose up -d
+```
+
+**Paso 3. Verificar que los contenedores estén activos:**
+
+Asegúrate de que MySQL y Kafka estén corriendo antes de iniciar los servicios de Java.
+
+```bash
+docker ps
+```
+
+*Debes ver los contenedores de `mysql` y `kafka` en estado `Up`.*
+
+**Paso 4. Compilar el proyecto (desde la raíz de `market-parent`):**
+
+Descarga las dependencias y genera los artefactos (JAR) de Spring Boot.
+
+```bash
+mvn clean install -DskipTests
+```
+
+**Paso 5. Iniciar los microservicios (Spring Boot):**
+
+Abre terminales separadas o utiliza tu IDE (IntelliJ/VSCode) para ejecutar los siguientes servicios:
+
+**Terminal 1 - Market Loader Service:** (Se encarga de la ingesta histórica y la persistencia en MySQL vía Flyway).
+
+```bash
+cd market-loader-service
+mvn spring-boot:run
+```
+
+**Terminal 2 - Market Stream Service:** (Se conecta al WebSocket de Yahoo y publica en Kafka).
+
+```bash
+cd market-stream-service
+mvn spring-boot:run
+```
+
+**Paso 6. Validar el entorno:**
+
+- **Health Check del Loader:** `http://localhost:9080/actuator/health`
+- **Verificar tópicos de Kafka:** Ingresa a la consola de Kafka o utiliza herramientas como `kafkacat` para verificar que los tópicos `market-ticks` y `market-signals` estén recibiendo mensajes.
+
+
 ## 06 - Optimización (Performance y Resiliencia)
 
 **Objetivo:** Proporcionar visibilidad del avance técnico y de negocio, alineado al Manual PRO+ y al documento de Arquitectura.
 
 ![CIAT CIO IA - Roadmap Estratégico](02-Analisis/docs/assets/roadmap-ciat.png)
-*(Nota: La imagen debe estar guardada en la ruta especificada para renderizarse).*
 
 **Leyenda:** ✅ Completado | 🟡 En Progreso | ⏳ Pendiente | ❌ Bloqueador
 
