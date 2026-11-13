@@ -1,0 +1,51 @@
+server:
+  port: 9082
+
+spring:
+  application:
+    name: market-alert-service
+  
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    
+    # 👇 NUEVA CONFIGURACIÓN DEL CONSUMIDOR (Para el @KafkaListener)
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: mx.com.ciat.cio.market.platform.marketalertservice.domain.model.Signal
+        spring.json.use.type.headers: false # 👈 Ignora el header __TypeId__ que manda el productor
+    
+    # CONFIGURACIÓN DE KAFKA STREAMS (Para la Topología)
+    streams:
+      application-id: market-alert-streams-app
+      properties:
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: org.springframework.kafka.support.serializer.JsonSerde
+        spring.json.trusted.packages: "*"
+        processing.guarantee: exactly_once_v2
+        
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:ernesto.tcs@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:M4rt1n3$6}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+whatsapp:
+  api:
+    token: ${WHATSAPP_API_TOKEN:TU_TOKEN}
+    phone-number-id: ${WHATSAPP_API_PHONE_NUMBER_ID:TU_ID}
+    recipient: ${WHATSAPP_API_RECIPIENT:521XXXXXXXXXX}
+
+logging:
+  level:
+    mx.com.ciat.cio.market.platform.marketalertservice: DEBUG
+    org.springframework.kafka: INFO # 👈 Cambiado a INFO para no llenar los logs con el detalle de Kafka
+    org.apache.kafka: WARN

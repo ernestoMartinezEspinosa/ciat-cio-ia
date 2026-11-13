@@ -1,0 +1,191 @@
+services:
+
+  # =========================
+  # MYSQL (FLYWAY + JPA)
+  # =========================
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-market
+    restart: always
+    environment:
+      MYSQL_DATABASE: marketdb
+      MYSQL_USER: market_user
+      MYSQL_PASSWORD: market_pass
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # =========================
+  # ZOOKEEPER
+  # =========================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -q 'Zookeeper version'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # =========================
+  # KAFKA BROKER
+  # =========================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_BROKER_READY: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 40s
+
+  # =========================
+  # KAFKA REST PROXY (HTTP)
+  # =========================
+  kafka-rest:
+    image: confluentinc/cp-kafka-rest:7.5.0
+    container_name: kafka-rest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "18082:8082"
+    environment:
+      KAFKA_REST_HOST_NAME: kafka-rest
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      KAFKA_REST_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+
+  # =========================
+  # ZIPKIN (TRACING)
+  # =========================
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+
+  # =========================
+  # PROMETHEUS (METRICS)
+  # =========================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  # =========================
+  # GRAFANA (DASHBOARDS)
+  # =========================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - prometheus
+
+  # =========================
+  # REDIS
+  # =========================
+  redis:
+    image: redis:7
+    container_name: redis-market
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =========================
+  # TU MICROSERVICIO
+  # =========================
+  market-loader-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: market-loader-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+    ports:
+      - "9080:9080"                       # ⚠️ el server.port es 9080, NO 8081
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/marketdb
+      SPRING_DATASOURCE_USERNAME: market_user
+      SPRING_DATASOURCE_PASSWORD: market_pass
+      SPRING_FLYWAY_ENABLED: "true"
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
+
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      OTEL_EXPORTER_ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+  # =========================
+  # KAFKA UI
+  # =========================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "18085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+volumes:
+  mysql_data:

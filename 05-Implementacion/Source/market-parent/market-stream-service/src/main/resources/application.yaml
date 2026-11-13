@@ -1,0 +1,58 @@
+server:
+  port: ${SERVER_PORT:9081}
+
+spring:
+  application:
+    name: market-stream-service
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/marketdb}
+    username: ${SPRING_DATASOURCE_USERNAME:market_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:market_pass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      key-serializer: ${SPRING_KAFKA_PRODUCER_KEY_SERIALIZER:org.apache.kafka.common.serialization.StringSerializer}
+      value-serializer: ${SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER:org.springframework.kafka.support.serializer.JsonSerializer}
+      properties:
+        spring.json.add.type.headers: ${SPRING_KAFKA_PRODUCER_PROPERTIES_SPRING_JSON_ADD_TYPE_HEADERS:false}
+
+# Variables personalizadas de Yahoo
+yahoo:
+  websocket:
+    url: ${YAHOO_WEBSOCKET_URL:wss://streamer.finance.yahoo.com/?version=2}
+    symbols: ${YAHOO_WEBSOCKET_SYMBOLS:AAPL,BE,MSFT,AMZN,AMD}
+
+# Observabilidad
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+
+otel:
+  exporter:
+    zipkin:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+logging:
+  level:
+    mx.com.ciat.cio.market.platform.marketstreamservice: ${LOGGING_LEVEL_MX_COM_CIAT_CIO_MARKET_PLATFORM_MARKETSTREAMSERVICE:DEBUG}
+    org.springframework.kafka: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_KAFKA:DEBUG}
+    org.apache.kafka: ${LOGGING_LEVEL_ORG_APACHE_KAFKA:WARN}

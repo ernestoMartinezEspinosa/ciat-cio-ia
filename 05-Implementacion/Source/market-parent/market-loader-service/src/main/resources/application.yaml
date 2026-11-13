@@ -1,0 +1,114 @@
+spring:
+  application:
+    name: market-loader-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false                # elimina el WARN
+    show-sql: false
+    properties:
+      hibernate:
+        preferred_uuid_jdbc_type: CHAR
+        jdbc:
+          batch_size: 1000
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+        format_sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    locations: classpath:db/migration
+
+  # 🔥 ESTO ES LO QUE FALTABA
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+    consumer:
+      group-id: market-loader-service
+      auto-offset-reset: earliest
+      trusted-packages: mx.com.ciat.cio.market.platform.marketloaderservice.*
+      use-type-headers: false
+      listener:
+        concurrency: 3
+        ack-mode: record
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "mx.com.ciat.cio.market.platform.marketloaderservice.domain.event"
+        spring.json.value.default.type: mx.com.ciat.cio.market.platform.marketloaderservice.domain.event.InstrumentLoadRequestedEvent
+        spring.json.use.type.headers: false
+    topics:
+      instrument-load-requested: market.instrument-load-requested-v1
+      instrument-load-completed: market.instrument-load-completed-v1
+      instrument-load-failed: market.instrument-load-failed-v1
+      retry-1: market.instrument-load-requested-retry-1
+      retry-2: market.instrument-load-requested-retry-2
+      dlq: market.instrument-load-requested-dlq
+
+server:
+  port: 9080
+
+
+logging:
+  level:
+    org.flywaydb: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+
+candle:
+  persistence:
+    mode: jdbc-batch
+
+yahoo:
+  finance:
+    base-url: https://query1.finance.yahoo.com
+    connect-timeout: 5s
+    read-timeout: 30s
+
+resilience4j:
+  retry:
+    instances:
+      yahoo:
+        max-attempts: 3
+        wait-duration: 2s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+  circuitbreaker:
+    instances:
+      yahoo:
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 3
+  ratelimiter:
+    instances:
+      yahoo:
+        limit-for-period: 1
+        limit-refresh-period: 2s
+        timeout-duration: 5s
