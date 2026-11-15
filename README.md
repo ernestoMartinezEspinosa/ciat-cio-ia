@@ -6,9 +6,7 @@
 
 Bienvenido al repositorio oficial de **CIAT-CIO-AI**. Este proyecto implementa un modelo operativo de tipo *Hedge Fund* para el trading algorítmico y la gestión de portafolios, combinando metodologías de trading probadas con una arquitectura de microservicios de alto rendimiento, procesamiento de streams en tiempo real y gestión de riesgo institucional.
 
-
 ---
-
 **Repositorio de Ingeniería y Arquitectura de Software**
 
 Este repositorio contiene el código fuente y la documentación técnica del sistema **CIAT-CIO-AI**, una plataforma de trading algorítmico basada en microservicios orientados a eventos (EDA). El sistema está diseñado para procesar flujos de datos de mercado, calcular indicadores técnicos y ejecutar estrategias de gestión de riesgo institucional.
@@ -26,6 +24,7 @@ Este documento está dirigido a **Arquitectos de Software, SREs, Ingenieros de D
 5. [05 - Implementación (Stack y CI/CD)](#05---implementación-stack-y-cicd)
 6. [06 - Optimización (Performance y Resiliencia)](#06---optimización-performance-y-resiliencia)
 7. [07 - Cierre (Observabilidad y Contacto)](#07---cierre-observabilidad-y-contacto)
+8. [08 - Estrategia de Versionado (Git Flow)](#08---estrategia-de-versionado-git-flow)
 
 ---
 
@@ -121,12 +120,72 @@ Este documento está dirigido a **Arquitectos de Software, SREs, Ingenieros de D
 | **Convenciones de Código** | `/05-Implementacion/CODING_STANDARDS.md` | Reglas de PRs, commits, etc. |
 | **Pipeline CI/CD** | `/05-Implementacion/.github/workflows/` | Archivos YAML de GitHub Actions. |
 
+
+### 5.1. Secuencia de Despliegue Local (Docker Compose)
+
+Para levantar el entorno completo y probar la arquitectura (Kafka, MySQL y Microservicios), sigue estos pasos en orden.
+
+**Paso 1. Navegar al directorio de infraestructura:**
+
+```bash
+cd /05-Implementacion/Source/market-parent
+```
+
+**Paso 2. Levantar la infraestructura base (MySQL y Kafka):**
+
+Utiliza el archivo `docker-compose.yml` para iniciar la base de datos y el broker de mensajería en segundo plano.
+
+```bash
+docker-compose up -d
+```
+
+**Paso 3. Verificar que los contenedores estén activos:**
+
+Asegúrate de que MySQL y Kafka estén corriendo antes de iniciar los servicios de Java.
+
+```bash
+docker ps
+```
+
+*Debes ver los contenedores de `mysql` y `kafka` en estado `Up`.*
+
+**Paso 4. Compilar el proyecto (desde la raíz de `market-parent`):**
+
+Descarga las dependencias y genera los artefactos (JAR) de Spring Boot.
+
+```bash
+mvn clean install -DskipTests
+```
+
+**Paso 5. Iniciar los microservicios (Spring Boot):**
+
+Abre terminales separadas o utiliza tu IDE (IntelliJ/VSCode) para ejecutar los siguientes servicios:
+
+**Terminal 1 - Market Loader Service:** (Se encarga de la ingesta histórica y la persistencia en MySQL vía Flyway).
+
+```bash
+cd market-loader-service
+mvn spring-boot:run
+```
+
+**Terminal 2 - Market Stream Service:** (Se conecta al WebSocket de Yahoo y publica en Kafka).
+
+```bash
+cd market-stream-service
+mvn spring-boot:run
+```
+
+**Paso 6. Validar el entorno:**
+
+- **Health Check del Loader:** `http://localhost:9080/actuator/health`
+- **Verificar tópicos de Kafka:** Ingresa a la consola de Kafka o utiliza herramientas como `kafkacat` para verificar que los tópicos `market-ticks` y `market-signals` estén recibiendo mensajes.
+
+
 ## 06 - Optimización (Performance y Resiliencia)
 
 **Objetivo:** Proporcionar visibilidad del avance técnico y de negocio, alineado al Manual PRO+ y al documento de Arquitectura.
 
 ![CIAT CIO IA - Roadmap Estratégico](02-Analisis/docs/assets/roadmap-ciat.png)
-*(Nota: La imagen debe estar guardada en la ruta especificada para renderizarse).*
 
 **Leyenda:** ✅ Completado | 🟡 En Progreso | ⏳ Pendiente | ❌ Bloqueador
 
@@ -159,6 +218,43 @@ Este documento está dirigido a **Arquitectos de Software, SREs, Ingenieros de D
 | **Runbooks** | `/07-Cierre/RUNBOOKS.md` | Procedimientos ante incidentes. |
 | **Dashboards** | `/07-Cierre/GRAFANA_DASHBOARDS.json` | Configuración de paneles. |
 | **Contacto** | `/07-Cierre/CONTACT.md` | Directorio del equipo técnico. |
+---
+
+## 08 - Estrategia de Versionado (Git Flow)
+
+**Objetivo:** Estandarizar la colaboración, el flujo de integración y la calidad del código mediante políticas estrictas de control de versiones.
+
+### 8.1. Nombrado de Ramas de Trabajo
+Todas las ramas de características o correcciones **deben nacer de la rama `DEV`**.
+El formato obligatorio para el nombrado es:
+`feat/{siglasUser}/{Servicio}/{ajusteOrequerimiento}`
+
+*   **Ejemplo:** `feat/eme/market-loader/add-crsi-indicator`
+*   **Siglas de Usuario:** Se usarán las iniciales del desarrollador (Ej. `eme` para Ernesto Martínez E.).
+*   **Servicio:** El módulo impactado (Ej. `market-stream`, `alert-service`).
+*   **Ajuste:** Descripción corta en kebab-case.
+
+### 8.2. Ciclo de Vida del Desarrollo y PRs
+Está estrictamente prohibido hacer *Push* directo a `DEV` o a `MAIN`. Todo cambio debe pasar por un Pull Request (PR) aprobado.
+
+**El ciclo de integración es el siguiente:**
+
+1.  **Generar Rama:** Crear la rama desde `DEV` siguiendo la nomenclatura.
+2.  **Ajustes:** Desarrollar el código, realizar pruebas locales y verificar que el pipeline de CI (pruebas unitarias) pase.
+3.  **Pull Request (PR):** Abrir el PR hacia `DEV`, detallando los cambios, el ticket asociado y el impacto en la arquitectura.
+4.  **Revisión:** Se requiere la aprobación de al menos **1 Arquitecto o Tech Lead**.
+5.  **Merge a DEV:** Una vez aprobado y con el pipeline en verde, se hace el *Squash and Merge* hacia `DEV`.
+
+**Diagrama del Ciclo de Vida:**
+
+```mermaid
+graph TD
+    A([Rama DEV]) -->|Generar Rama| B(feat/user/servicio/ajuste)
+    B -->|Desarrollo Local| C[Ajustes y Pruebas]
+    C -->|Push| D{PR a DEV}
+    D -->|CI en Verde y Aprobación| E[Merge]
+    E --> A
+```
 
 ---
 *Este README es mantenido por el equipo de Arquitectura. Las modificaciones requieren un ADR (Architecture Decision Record) aprobado.*

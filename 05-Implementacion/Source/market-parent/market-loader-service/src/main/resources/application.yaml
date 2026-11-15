@@ -60,13 +60,15 @@ spring:
 server:
   port: 9080
 
-
 logging:
   level:
     org.flywaydb: INFO
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: WARN
 
+# ==========================================
+# OBSERVABILIDAD (JAEGER + OTLP)
+# ==========================================
 management:
   endpoints:
     web:
@@ -74,7 +76,10 @@ management:
         include: health,metrics,prometheus
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+    otlp:
+      tracing:
+        endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 candle:
   persistence:

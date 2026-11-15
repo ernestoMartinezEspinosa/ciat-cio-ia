@@ -98,7 +98,7 @@ ALTER TABLE trade_result
 ALTER TABLE cio_score 
     COMMENT = 'Score histórico calculado por el motor (0-100). Permite auditar por qué se tomó una decisión en un momento dado.';
 
-ALTER TABLE cio_score_history 
+ALTER TABLE ciat_cio_score_history 
     COMMENT = 'Historial de cambios de score por instrumento. Útil para backtesting y análisis de tendencias del score.';
 
 -- =====================================================================
