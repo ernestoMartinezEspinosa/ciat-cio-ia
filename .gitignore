@@ -17,3 +17,9 @@
 05-Implementacion/Source/market-parent/market-stream-service/.factorypath
 05-Implementacion/Source/market-parent/market-stream-service/.project
 .project
+/05-Implementacion/Source/market-parent/market-alert-service/bin
+/05-Implementacion/Source/market-parent/market-loader-service/bin
+/05-Implementacion/Source/market-parent/market-stream-service/bin
+05-Implementacion/Source/market-parent/.factorypath
+05-Implementacion/Source/market-parent/.classpath
+/05-Implementacion/Source/market-parent/target

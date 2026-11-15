@@ -93,12 +93,14 @@ services:
     container_name: jaeger
     environment:
       - COLLECTOR_OTLP_ENABLED=true
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411 # Opcional: compatibilidad con Zipkin
+      # - COLLECTOR_ZIPKIN_HOST_PORT=9411  # <-- Puedes eliminar o comentar esta línea
+      # - MANAGEMENT_OTLP_TRACING_ENDPOINT:"http://jaeger:4318/v1/traces" # (Revisa si esta sintaxis es correcta, tiene un espacio faltante)
+      # - MANAGEMENT_TRACING_ZIPKIN_ENABLED:"false" # <-- Ya no es necesaria si no expones el puerto
     ports:
       - "16686:16686" # Jaeger UI
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
-      - "9411:9411"   # Zipkin compatible endpoint
+      # - "9411:9411"   # <-- ELIMINA ESTA LÍNEA
 
   # =========================
   # LOKI (LOGS)
